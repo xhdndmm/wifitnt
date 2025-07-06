@@ -1,7 +1,4 @@
-import main
-
-def print_info():
-    print(
+print(
 '''
 Welcome to
  _       ________________   _______   ________
@@ -13,6 +10,7 @@ v1.0-beta
 https://github.com/xhdndmm/wifitnt
 ''')
 
+import main
+
 if __name__ == "__main__":
-    print_info()
     main()
