@@ -1,2 +1,2 @@
-ptwifi
+pywifi
 comtypes
