@@ -1,12 +1,12 @@
 # WIFITNT 使用文档
 
 ## 简介
-WIFITNT 是一个基于 Python 的 WiFi 密码多线程爆破工具，实现自动 MAC 更换，适用于 Windows 平台。支持密码本爆破和随机密码生成两种模式，自动检测并请求管理员权限。
+WIFITNT 是一个基于 Python 的 WiFi 密码多线程爆破工具，实现自动 MAC 更换，适用于 Windows/Linux 平台。支持密码本爆破和随机密码生成两种模式，自动检测并请求管理员权限。
 
 ## 环境要求
-- Windows 10/11
+- Windows 10/11或linux
 - Python 3.7 及以上
-- 需以管理员身份运行（程序会自动请求）
+- 需以管理员/root身份运行（程序会自动请求，linux需要手动使用root）
 - windows开启定位服务
 - 推荐使用支持更改 MAC 的 USB 无线网卡
 
@@ -16,7 +16,7 @@ pip install -r requirements.txt
 ```
 
 ## 使用方法
-1. 以普通方式运行 start.py，程序会自动请求管理员权限。
+1. 以管理员或root身份运行 main.py。
 2. 选择要使用的无线网卡编号。
 3. 等待 WiFi 扫描完成，选择要破解的 WiFi。
 4. 选择密码模式：
