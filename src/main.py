@@ -303,16 +303,15 @@ def main():
         print(f"{idx}\t信号强度: {signal}\tSSID: {name}")
 
     # 选择模式和目标
-    mode = input("请选择密码模式（1-密码本，2-随机生成）: ").strip()
-    while mode not in ('1', '2'):
-        mode = input("输入有误，请重新选择（1-密码本，2-随机生成）: ").strip()
-
     try:
         wifi_indices = input("请选择要破解的WiFi编号（可用逗号分隔多个）: ")
         wifi_index_list = [int(x.strip()) for x in wifi_indices.split(',') if x.strip().isdigit() and int(x.strip()) < len(wifi_signal_and_name_list)]
         if not wifi_index_list:
             print("未选择有效WiFi，退出。")
             sys.exit(1)
+        mode = input("请选择密码模式（1-密码本，2-随机生成）: ").strip()
+        while mode not in ('1', '2'):
+            mode = input("输入有误，请重新选择（1-密码本，2-随机生成）: ").strip()
     except:
         print("输入格式错误")
         sys.exit(1)
@@ -335,6 +334,7 @@ def main():
             max_len = int(input("随机密码最大长度: "))
             count = int(input("生成密码数量: "))
             charset = input("请输入字符集（留空默认字母数字）: ") or 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
+            print("正在生成密码……")
             passwords = [''.join(random.choices(charset, k=random.randint(min_len, max_len))) for _ in range(count)]
             print(f"已生成 {len(passwords)} 个随机密码。")
         except:
@@ -380,9 +380,10 @@ Welcome to
 |__/|__/___/_/   /___/    /_/ /_/ |_/ /_/ 
 https://github.com/xhdndmm/wifitnt
 '''
-, "version:" , version
+,"version:" , version
 )
 
 if __name__ == "__main__":
-    printversion("v1.1-beta")
+    printversion("v1.1")
+    time.sleep(1)
     main()
