@@ -8,21 +8,9 @@ import pywifi
 
 # ========== 权限检测 ==========
 def check_admin():
-    if os.name == 'nt':
-        import ctypes
-        try:
-            if not ctypes.windll.shell32.IsUserAnAdmin():
-                print("检测到未以管理员身份运行，正在请求管理员权限...")
-                params = ' '.join([f'"{x}"' for x in sys.argv])
-                ctypes.windll.shell32.ShellExecuteW(None, "runas", sys.executable, params, None, 1)
-                sys.exit(0)
-        except Exception as e:
-            print(f"管理员权限检测失败: {e}")
-            sys.exit(1)
-    else:
-        if os.geteuid() != 0:
-            print("请以 root 权限运行该程序（sudo python3 xxx.py）")
-            sys.exit(1)
+    if os.geteuid() != 0:
+        print("请以 root 权限运行该程序（sudo python3 xxx.py）")
+        sys.exit(1)
 
 # ========== 生成随机 MAC ==========
 def random_mac():
@@ -40,40 +28,9 @@ def change_mac(interface_name):
     new_mac = random_mac()
     print(f"[MAC] 正在更换 {interface_name} 的 MAC 地址为: {new_mac}")
     try:
-        if os.name == 'nt':
-            import winreg
-            subprocess.run(f'netsh interface set interface name="{interface_name}" admin=disable', shell=True, check=True)
-            key = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE,
-                                 r'SYSTEM\CurrentControlSet\Control\Class\{4d36e972-e325-11ce-bfc1-08002be10318}',
-                                 0, winreg.KEY_ALL_ACCESS)
-            i = 0
-            found = False
-            while True:
-                try:
-                    subkey = winreg.EnumKey(key, i)
-                    subkey_path = r'SYSTEM\CurrentControlSet\Control\Class\{4d36e972-e325-11ce-bfc1-08002be10318}\\' + subkey
-                    subkey_handle = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, subkey_path, 0, winreg.KEY_ALL_ACCESS)
-                    try:
-                        name, _ = winreg.QueryValueEx(subkey_handle, 'NetCfgInstanceId')
-                        if interface_name in name:
-                            winreg.SetValueEx(subkey_handle, 'NetworkAddress', 0, winreg.REG_SZ, new_mac.replace(':', ''))
-                            found = True
-                            break
-                    except Exception:
-                        pass
-                    finally:
-                        winreg.CloseKey(subkey_handle)
-                    i += 1
-                except OSError:
-                    break
-            winreg.CloseKey(key)
-            if not found:
-                print("[MAC] 未找到对应网卡注册表项，MAC 更换失败。")
-            subprocess.run(f'netsh interface set interface name="{interface_name}" admin=enable', shell=True, check=True)
-        else:
-            subprocess.run(f"ip link set dev {interface_name} down", shell=True, check=True)
-            subprocess.run(f"ip link set dev {interface_name} address {new_mac}", shell=True, check=True)
-            subprocess.run(f"ip link set dev {interface_name} up", shell=True, check=True)
+        subprocess.run(f"ip link set dev {interface_name} down", shell=True, check=True)
+        subprocess.run(f"ip link set dev {interface_name} address {new_mac}", shell=True, check=True)
+        subprocess.run(f"ip link set dev {interface_name} up", shell=True, check=True)
     except Exception as e:
         print(f"[MAC] 更换 MAC 地址失败: {e}")
 
